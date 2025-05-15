@@ -7,7 +7,6 @@ if [ $# -eq 2 ]; then
                 x=$(ls $1 -r | wc -l)
                 y=$(grep -r $2 $1 | wc -l)
                 echo "The number of files are $x and the number of matching lines are $y"
-                # forgetting exit 0 would lead to error in the caller script
                 exit 0
 
 	else
@@ -17,7 +16,7 @@ if [ $# -eq 2 ]; then
 
 else 
 
-	echo "failed: Few or more than 2 args passed"
+	echo "failed: Pass only 2 arguments!"
         exit 1
 
 fi 
