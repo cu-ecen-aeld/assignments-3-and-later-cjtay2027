@@ -1,3 +1,7 @@
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include "systemcalls.h"
 
 /**
@@ -16,6 +20,11 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int ret = system(cmd);
+    if(ret == -1){
+        perror("system");
+        return false;
+    }
 
     return true;
 }
@@ -58,6 +67,41 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    fflush(stdout); // prevent double print
+
+    pid_t pid = fork();
+
+    if(pid < 0){
+        perror("fork");
+        return false;
+    }
+    else if(pid == 0){ // child process, execute command
+        // Goes to new programs, never returns unless have issues
+        if(execv(command[0], command)==-1){
+            perror("Execv failed\n");
+            exit(EXIT_FAILURE);
+        }
+
+    }
+    
+    // Parent process runs this
+    int status;
+    // Wait for specific child, 0 in third argument means block until child terminates
+    if (waitpid(pid,&status,0) == -1){
+        perror("wait failed");
+        printf("\n waitpid() failed: Child process status was %d\n", status);
+        return false;
+    }
+
+    // Check status of wait
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        printf("Child exited successfully!\n");
+    }
+    else{
+        printf("Exit status non-zero, child exited with code %d\n", WEXITSTATUS(status));
+        return false;
+    }
+    
 
     va_end(args);
 
@@ -92,6 +136,54 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    pid_t pid;
+    int status;
+    int fd;
+
+    // Open and check file
+    fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0)
+    {
+        perror("Error on open file");
+        return false;
+    }
+
+    // Fork and check
+    pid = fork();
+    if (pid == -1)
+    {
+        perror("Fork failed");
+        return false;
+    }
+    else if (pid == 0)
+    {
+        // dup2 to redirect stdout to file
+        dup2(fd, 1);
+        if ( execv(command[0], command) == -1)
+        {
+            perror("Execv failed");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Check on wait and if good check on exit status of child process
+    if (waitpid(pid, &status, 0) == -1)
+    {
+        perror("wait failed");
+        // printf("\nStatus of child process was %d\n", status);
+        return false;
+    }
+    
+    // Check status of wait
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        printf("Child exited successfully!\n");
+    }
+    else{
+        printf("Exit status non-zero, child exited with code %d\n", WEXITSTATUS(status));
+        return false;
+    }
+    
+    close(fd);
 
     va_end(args);
 
